@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Contraseñas SaaS</title>
+    <!-- Incluye Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de la fuente Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gris claro de fondo */
+        }
+        /* Estilos para el slider de longitud */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); /* blue-500 con opacidad */
+            transition: background .15s ease-in-out;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); /* blue-500 con opacidad */
+            transition: background .15s ease-in-out;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb; /* gray-200 */
+            border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb; /* gray-200 */
+            border-radius: 4px;
+        }
+
+        /* Estilo para el botón de copiar */
+        .copy-button {
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        .copy-button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-lg border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Generador de Contraseñas Seguras</h1>
+        <p class="text-center text-gray-600 mb-8">Crea contraseñas fuertes y personalizadas al instante.</p>
+
+        <!-- Contenedor para la longitud de la contraseña -->
+        <div class="mb-6">
+            <label for="passwordLength" class="block text-gray-700 text-sm font-medium mb-2">
+                Longitud de la Contraseña: <span id="lengthValue" class="font-bold text-blue-600">12</span>
+            </label>
+            <input
+                type="range"
+                id="passwordLength"
+                min="6"
+                max="32"
+                value="12"
+                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            >
+        </div>
+
+        <!-- Opciones de personalización -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div class="flex items-center">
+                <input type="checkbox" id="includeUppercase" checked class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <label for="includeUppercase" class="ml-2 text-gray-700 text-sm font-medium">Incluir Mayúsculas (A-Z)</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="includeLowercase" checked class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <label for="includeLowercase" class="ml-2 text-gray-700 text-sm font-medium">Incluir Minúsculas (a-z)</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="includeNumbers" checked class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <label for="includeNumbers" class="ml-2 text-gray-700 text-sm font-medium">Incluir Números (0-9)</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="includeSymbols" class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <label for="includeSymbols" class="ml-2 text-gray-700 text-sm font-medium">Incluir Símbolos (!@#$)</label>
+            </div>
+        </div>
+
+        <!-- Botón para generar contraseña -->
+        <button
+            id="generateButton"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+        >
+            Generar Contraseña
+        </button>
+
+        <!-- Área de visualización de la contraseña generada -->
+        <div class="mt-8 bg-gray-100 p-4 rounded-lg border border-gray-300 flex items-center justify-between">
+            <input
+                type="text"
+                id="generatedPassword"
+                class="flex-grow bg-transparent text-gray-800 text-lg font-mono outline-none border-none pointer-events-none"
+                readonly
+                value="Haz clic en Generar"
+            >
+            <button
+                id="copyButton"
+                class="ml-4 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg copy-button focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+            >
+                Copiar
+            </button>
+        </div>
+
+        <!-- Mensaje de confirmación de copiado -->
+        <div id="copyMessage" class="mt-4 text-center text-green-600 text-sm hidden">
+            ¡Contraseña copiada al portapapeles!
+        </div>
+
+        <!-- Sección de información adicional -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Asegura tus cuentas con contraseñas robustas y difíciles de adivinar.</p>
+            <p class="mt-2">Desarrollado con HTML, Tailwind CSS y JavaScript.</p>
+        </div>
+    </div>
+
+    <script>
+        // Obtiene referencias a los elementos del DOM
+        const passwordLengthInput = document.getElementById('passwordLength');
+        const lengthValueSpan = document.getElementById('lengthValue');
+        const includeUppercaseCheckbox = document.getElementById('includeUppercase');
+        const includeLowercaseCheckbox = document.getElementById('includeLowercase');
+        const includeNumbersCheckbox = document.getElementById('includeNumbers');
+        const includeSymbolsCheckbox = document.getElementById('includeSymbols');
+        const generateButton = document.getElementById('generateButton');
+        const generatedPasswordInput = document.getElementById('generatedPassword');
+        const copyButton = document.getElementById('copyButton');
+        const copyMessageDiv = document.getElementById('copyMessage');
+
+        // Define los conjuntos de caracteres
+        const uppercaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lowercaseChars = 'abcdefghijklmnopqrstuvwxyz';
+        const numberChars = '0123456789';
+        const symbolChars = '!@#$%^&*()_+[]{}|;:,.<>?';
+
+        /**
+         * Actualiza el valor de la longitud de la contraseña en la UI.
+         */
+        function updateLengthValue() {
+            lengthValueSpan.textContent = passwordLengthInput.value;
+        }
+
+        /**
+         * Genera una contraseña aleatoria basada en las opciones seleccionadas.
+         * @returns {string} La contraseña generada.
+         */
+        function generatePassword() {
+            let availableChars = '';
+            let generatedPassword = '';
+            const passwordLength = parseInt(passwordLengthInput.value);
+
+            // Construye el conjunto de caracteres disponibles
+            if (includeUppercaseCheckbox.checked) {
+                availableChars += uppercaseChars;
+            }
+            if (includeLowercaseCheckbox.checked) {
+                availableChars += lowercaseChars;
+            }
+            if (includeNumbersCheckbox.checked) {
+                availableChars += numberChars;
+            }
+            if (includeSymbolsCheckbox.checked) {
+                availableChars += symbolChars;
+            }
+
+            // Si no se selecciona ningún tipo de carácter, se muestra un mensaje y se sale
+            if (availableChars.length === 0) {
+                generatedPasswordInput.value = "Selecciona al menos una opción.";
+                return;
+            }
+
+            // Asegura que al menos un carácter de cada tipo seleccionado esté presente
+            // Esto mejora la "fuerza" percibida y real de la contraseña
+            if (includeUppercaseCheckbox.checked) {
+                generatedPassword += uppercaseChars.charAt(Math.floor(Math.random() * uppercaseChars.length));
+            }
+            if (includeLowercaseCheckbox.checked) {
+                generatedPassword += lowercaseChars.charAt(Math.floor(Math.random() * lowercaseChars.length));
+            }
+            if (includeNumbersCheckbox.checked) {
+                generatedPassword += numberChars.charAt(Math.floor(Math.random() * numberChars.length));
+            }
+            if (includeSymbolsCheckbox.checked) {
+                generatedPassword += symbolChars.charAt(Math.floor(Math.random() * symbolChars.length));
+            }
+
+            // Rellena el resto de la contraseña con caracteres aleatorios del conjunto disponible
+            for (let i = generatedPassword.length; i < passwordLength; i++) {
+                const randomIndex = Math.floor(Math.random() * availableChars.length);
+                generatedPassword += availableChars.charAt(randomIndex);
+            }
+
+            // Mezcla la contraseña para asegurar la aleatoriedad de la posición de los caracteres obligatorios
+            generatedPassword = generatedPassword.split('').sort(() => Math.random() - 0.5).join('');
+
+            generatedPasswordInput.value = generatedPassword;
+        }
+
+        /**
+         * Copia la contraseña generada al portapapeles.
+         */
+        function copyPassword() {
+            const password = generatedPasswordInput.value;
+            if (password && password !== "Haz clic en Generar" && password !== "Selecciona al menos una opción.") {
+                // Crea un elemento de texto temporal para copiar
+                const tempInput = document.createElement('textarea');
+                tempInput.value = password;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy'); // Utiliza execCommand para compatibilidad con iframes
+                document.body.removeChild(tempInput);
+
+                // Muestra el mensaje de confirmación
+                copyMessageDiv.classList.remove('hidden');
+                setTimeout(() => {
+                    copyMessageDiv.classList.add('hidden');
+                }, 2000); // Oculta el mensaje después de 2 segundos
+            }
+        }
+
+        // Agrega escuchadores de eventos
+        passwordLengthInput.addEventListener('input', updateLengthValue);
+        generateButton.addEventListener('click', generatePassword);
+        copyButton.addEventListener('click', copyPassword);
+
+        // Genera una contraseña inicial al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLengthValue(); // Asegura que el valor de longitud se muestre correctamente al inicio
+            generatePassword();
+        });
+    </script>
+</body>
+</html>
