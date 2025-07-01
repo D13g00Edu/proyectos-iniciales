@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Notas Simple SaaS</title>
+    <!-- Incluye Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de la fuente Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables globales para Firebase (serán proporcionadas por el entorno Canvas)
+        // Usando los valores proporcionados por el usuario
+        const appId = "1:103243448587:web:489037db0a2de22713a20e";
+        const firebaseConfig = {
+            apiKey: "AIzaSyA42AQ81EbouzJHLS6cn_P8xDJmP53qvWI",
+            authDomain: "notas-dc897.firebaseapp.com",
+            projectId: "notas-dc897",
+            storageBucket: "notas-dc897.firebasestorage.app",
+            messagingSenderId: "103243448587",
+            appId: "1:103243448587:web:489037db0a2de22713a20e"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null; // Almacena el ID del usuario actual
+        let notesCollectionRef = null; // Referencia a la colección de notas del usuario
+
+        // Referencias a elementos del DOM
+        const authStatusDiv = document.getElementById('authStatus');
+        const userIdSpan = document.getElementById('userId');
+        const noteTitleInput = document.getElementById('noteTitle');
+        const noteContentInput = document.getElementById('noteContent');
+        const addNoteButton = document.getElementById('addNoteButton');
+        const notesListDiv = document.getElementById('notesList');
+        const editModal = document.getElementById('editModal');
+        const editNoteIdInput = document.getElementById('editNoteId');
+        const editNoteTitleInput = document.getElementById('editNoteTitle');
+        const editNoteContentInput = document.getElementById('editNoteContent');
+        const saveEditButton = document.getElementById('saveEditButton');
+        const cancelEditButton = document.getElementById('cancelEditButton');
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmMessageDiv = document.getElementById('confirmMessage');
+        const confirmActionButton = document.getElementById('confirmActionButton');
+        const cancelConfirmButton = document.getElementById('cancelConfirmButton');
+
+        let currentNoteToDeleteId = null; // Almacena el ID de la nota a eliminar
+
+        /**
+         * Maneja los cambios en el estado de autenticación.
+         * @param {firebase.User} user - El objeto de usuario autenticado.
+         */
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdSpan.textContent = userId;
+                authStatusDiv.classList.remove('hidden');
+
+                // Define la ruta de la colección de notas para este usuario
+                notesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/notes`);
+
+                // Escucha cambios en las notas en tiempo real
+                // No usamos orderBy para evitar la necesidad de índices, se ordenará en el cliente.
+                onSnapshot(notesCollectionRef, (snapshot) => {
+                    const notes = [];
+                    snapshot.forEach(doc => {
+                        notes.push({ id: doc.id, ...doc.data() });
+                    });
+                    // Ordenar las notas por fecha de creación (más reciente primero)
+                    notes.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+                    renderNotes(notes);
+                }, (error) => {
+                    console.error("Error al obtener notas en tiempo real:", error);
+                    // Aquí podrías mostrar un mensaje de error al usuario
+                });
+
+            } else {
+                // Si no hay usuario, intenta iniciar sesión anónimamente o con el token proporcionado
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error al iniciar sesión:", error);
+                    userIdSpan.textContent = 'Error de autenticación';
+                    authStatusDiv.classList.remove('hidden');
+                }
+            }
+        });
+
+        /**
+         * Renderiza la lista de notas en el DOM.
+         * @param {Array<Object>} notes - Un array de objetos de notas.
+         */
+        function renderNotes(notes) {
+            notesListDiv.innerHTML = ''; // Limpia la lista actual
+            if (notes.length === 0) {
+                notesListDiv.innerHTML = '<p class="text-center text-gray-500 mt-4">No hay notas aún. ¡Crea una!</p>';
+                return;
+            }
+
+            notes.forEach(note => {
+                const noteElement = document.createElement('div');
+                noteElement.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4';
+                noteElement.innerHTML = `
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">${note.title}</h3>
+                    <p class="text-gray-700 whitespace-pre-wrap">${note.content}</p>
+                    <div class="mt-4 flex justify-end space-x-2">
+                        <button data-id="${note.id}" data-title="${note.title}" data-content="${note.content}"
+                                class="edit-button bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out">
+                            Editar
+                        </button>
+                        <button data-id="${note.id}"
+                                class="delete-button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out">
+                            Eliminar
+                        </button>
+                    </div>
+                `;
+                notesListDiv.appendChild(noteElement);
+            });
+
+            // Agrega escuchadores de eventos a los botones de editar y eliminar
+            document.querySelectorAll('.edit-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.target.dataset.id;
+                    const title = e.target.dataset.title;
+                    const content = e.target.dataset.content;
+                    openEditModal(id, title, content);
+                });
+            });
+
+            document.querySelectorAll('.delete-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.target.dataset.id;
+                    openConfirmModal("¿Estás seguro de que quieres eliminar esta nota?", () => deleteNote(id));
+                });
+            });
+        }
+
+        /**
+         * Abre el modal de edición con los datos de la nota.
+         * @param {string} id - ID de la nota.
+         * @param {string} title - Título de la nota.
+         * @param {string} content - Contenido de la nota.
+         */
+        function openEditModal(id, title, content) {
+            editNoteIdInput.value = id;
+            editNoteTitleInput.value = title;
+            editNoteContentInput.value = content;
+            editModal.classList.remove('hidden');
+        }
+
+        /**
+         * Cierra el modal de edición.
+         */
+        function closeEditModal() {
+            editModal.classList.add('hidden');
+        }
+
+        /**
+         * Abre el modal de confirmación para una acción.
+         * @param {string} message - Mensaje a mostrar en el modal.
+         * @param {Function} actionCallback - Función a ejecutar si se confirma la acción.
+         */
+        function openConfirmModal(message, actionCallback) {
+            confirmMessageDiv.textContent = message;
+            confirmActionButton.onclick = () => {
+                actionCallback();
+                closeConfirmModal();
+            };
+            confirmModal.classList.remove('hidden');
+        }
+
+        /**
+         * Cierra el modal de confirmación.
+         */
+        function closeConfirmModal() {
+            confirmModal.classList.add('hidden');
+            currentNoteToDeleteId = null; // Limpia el ID de la nota a eliminar
+        }
+
+        /**
+         * Agrega una nueva nota a Firestore.
+         */
+        addNoteButton.addEventListener('click', async () => {
+            const title = noteTitleInput.value.trim();
+            const content = noteContentInput.value.trim();
+
+            if (!title || !content) {
+                // Podrías mostrar un mensaje de error en la UI
+                openConfirmModal("El título y el contenido de la nota no pueden estar vacíos.", () => {});
+                return;
+            }
+
+            if (!notesCollectionRef) {
+                console.error("La colección de notas no está inicializada. ¿Usuario no autenticado?");
+                openConfirmModal("Error: No se pudo agregar la nota. Por favor, recarga la página.", () => {});
+                return;
+            }
+
+            try {
+                await addDoc(notesCollectionRef, {
+                    title: title,
+                    content: content,
+                    createdAt: new Date() // Marca de tiempo para ordenar
+                });
+                noteTitleInput.value = '';
+                noteContentInput.value = '';
+            } catch (e) {
+                console.error("Error al añadir documento: ", e);
+                openConfirmModal("Error al guardar la nota. Inténtalo de nuevo.", () => {});
+            }
+        });
+
+        /**
+         * Guarda los cambios de una nota editada en Firestore.
+         */
+        saveEditButton.addEventListener('click', async () => {
+            const id = editNoteIdInput.value;
+            const newTitle = editNoteTitleInput.value.trim();
+            const newContent = editNoteContentInput.value.trim();
+
+            if (!newTitle || !newContent) {
+                openConfirmModal("El título y el contenido de la nota no pueden estar vacíos.", () => {});
+                return;
+            }
+
+            if (!notesCollectionRef || !userId) {
+                console.error("Firestore o userId no están listos.");
+                openConfirmModal("Error: No se pudo guardar la edición. Por favor, recarga la página.", () => {});
+                return;
+            }
+
+            try {
+                const noteDocRef = doc(db, `artifacts/${appId}/users/${userId}/notes`, id);
+                await updateDoc(noteDocRef, {
+                    title: newTitle,
+                    content: newContent
+                });
+                closeEditModal();
+            } catch (e) {
+                console.error("Error al actualizar documento: ", e);
+                openConfirmModal("Error al actualizar la nota. Inténtalo de nuevo.", () => {});
+            }
+        });
+
+        /**
+         * Elimina una nota de Firestore.
+         * @param {string} id - ID de la nota a eliminar.
+         */
+        async function deleteNote(id) {
+            if (!notesCollectionRef || !userId) {
+                console.error("Firestore o userId no están listos.");
+                openConfirmModal("Error: No se pudo eliminar la nota. Por favor, recarga la página.", () => {});
+                return;
+            }
+            try {
+                const noteDocRef = doc(db, `artifacts/${appId}/users/${userId}/notes`, id);
+                await deleteDoc(noteDocRef);
+            } catch (e) {
+                console.error("Error al eliminar documento: ", e);
+                openConfirmModal("Error al eliminar la nota. Inténtalo de nuevo.", () => {});
+            }
+        }
+
+        // Event listeners para los botones de los modales
+        cancelEditButton.addEventListener('click', closeEditModal);
+        cancelConfirmButton.addEventListener('click', closeConfirmModal);
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gris claro de fondo */
+        }
+        /* Estilos para el modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Corregido de 'justify-center' */
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90%;
+            width: 500px;
+        }
+        textarea {
+            resize: vertical;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-4xl border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Aplicación de Notas Simple</h1>
+        <p class="text-center text-gray-600 mb-8">Crea, edita y organiza tus notas de forma segura en línea.</p>
+
+        <!-- Estado de autenticación del usuario -->
+        <div id="authStatus" class="hidden text-center bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg mb-6">
+            <p class="text-sm">Usuario autenticado (ID): <span id="userId" class="font-mono font-semibold text-blue-900 break-all"></span></p>
+        </div>
+
+        <!-- Sección para añadir nueva nota -->
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Añadir Nueva Nota</h2>
+            <input
+                type="text"
+                id="noteTitle"
+                placeholder="Título de la nota"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out mb-3 text-gray-800"
+            >
+            <textarea
+                id="noteContent"
+                placeholder="Contenido de la nota..."
+                rows="5"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out mb-4 text-gray-800"
+            ></textarea>
+            <button
+                id="addNoteButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+            >
+                Añadir Nota
+            </button>
+        </div>
+
+        <!-- Lista de notas existentes -->
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Mis Notas</h2>
+        <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Las notas se cargarán aquí dinámicamente -->
+            <p class="text-center text-gray-500 mt-4 col-span-full">Cargando notas...</p>
+        </div>
+
+        <!-- Modal de Edición -->
+        <div id="editModal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Editar Nota</h2>
+                <input type="hidden" id="editNoteId">
+                <input
+                    type="text"
+                    id="editNoteTitle"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out mb-3 text-gray-800"
+                >
+                <textarea
+                    id="editNoteContent"
+                    rows="8"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out mb-4 text-gray-800"
+                ></textarea>
+                <div class="flex justify-end space-x-3">
+                    <button
+                        id="cancelEditButton"
+                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        id="saveEditButton"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out"
+                    >
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Confirmación -->
+        <div id="confirmModal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Confirmación</h2>
+                <p id="confirmMessage" class="text-gray-700 mb-6"></p>
+                <div class="flex justify-end space-x-3">
+                    <button
+                        id="cancelConfirmButton"
+                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        id="confirmActionButton"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out"
+                    >
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección de información adicional -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Tus notas se guardan de forma segura y son accesibles desde cualquier lugar.</p>
+            <p class="mt-2">Desarrollado con HTML, Tailwind CSS, JavaScript y Firebase Firestore.</p>
+        </div>
+    </div>
+</body>
+</html>
+    
