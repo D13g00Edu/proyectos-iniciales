@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador de Texto SaaS</title>
+    <!-- Incluye Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de la fuente Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gris claro de fondo */
+        }
+        /* Estilos personalizados para el textarea */
+        textarea {
+            resize: vertical; /* Permite redimensionar verticalmente */
+            min-height: 200px; /* Altura mínima */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-3xl border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Contador de Texto SaaS</h1>
+        <p class="text-center text-gray-600 mb-8">Pega tu texto aquí para obtener un recuento instantáneo de palabras y caracteres.</p>
+
+        <!-- Área de texto para la entrada del usuario -->
+        <textarea
+            id="textInput"
+            class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 placeholder-gray-400"
+            placeholder="Pega tu texto aquí..."
+            rows="10"
+        ></textarea>
+
+        <!-- Contenedor para mostrar los resultados -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <!-- Tarjeta de recuento de palabras -->
+            <div class="bg-blue-100 p-5 rounded-lg shadow-md flex flex-col items-center justify-center">
+                <p class="text-sm font-medium text-blue-700 mb-1">Palabras</p>
+                <p id="wordCount" class="text-4xl font-bold text-blue-800">0</p>
+            </div>
+            <!-- Tarjeta de recuento de caracteres con espacios -->
+            <div class="bg-green-100 p-5 rounded-lg shadow-md flex flex-col items-center justify-center">
+                <p class="text-sm font-medium text-green-700 mb-1">Caracteres (con espacios)</p>
+                <p id="charCountWithSpaces" class="text-4xl font-bold text-green-800">0</p>
+            </div>
+            <!-- Tarjeta de recuento de caracteres sin espacios -->
+            <div class="bg-purple-100 p-5 rounded-lg shadow-md flex flex-col items-center justify-center">
+                <p class="text-sm font-medium text-purple-700 mb-1">Caracteres (sin espacios)</p>
+                <p id="charCountWithoutSpaces" class="text-4xl font-bold text-purple-800">0</p>
+            </div>
+        </div>
+
+        <!-- Sección de información adicional -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Herramienta ideal para escritores, editores y cualquier persona que necesite controlar la longitud de su texto.</p>
+            <p class="mt-2">Desarrollado con HTML, Tailwind CSS y JavaScript.</p>
+        </div>
+    </div>
+
+    <script>
+        // Obtiene referencias a los elementos del DOM
+        const textInput = document.getElementById('textInput');
+        const wordCountDisplay = document.getElementById('wordCount');
+        const charCountWithSpacesDisplay = document.getElementById('charCountWithSpaces');
+        const charCountWithoutSpacesDisplay = document.getElementById('charCountWithoutSpaces');
+
+        /**
+         * Función para contar palabras en un texto.
+         * @param {string} text - El texto de entrada.
+         * @returns {number} El número de palabras.
+         */
+        function countWords(text) {
+            // Elimina espacios en blanco al inicio y al final, luego divide por uno o más espacios en blanco.
+            // Si el texto está vacío o solo contiene espacios, devuelve 0 palabras.
+            const trimmedText = text.trim();
+            if (trimmedText === '') {
+                return 0;
+            }
+            const words = trimmedText.split(/\s+/);
+            return words.length;
+        }
+
+        /**
+         * Función para contar caracteres con espacios.
+         * @param {string} text - El texto de entrada.
+         * @returns {number} El número de caracteres incluyendo espacios.
+         */
+        function countCharactersWithSpaces(text) {
+            return text.length;
+        }
+
+        /**
+         * Función para contar caracteres sin espacios.
+         * @param {string} text - El texto de entrada.
+         * @returns {number} El número de caracteres excluyendo espacios.
+         */
+        function countCharactersWithoutSpaces(text) {
+            // Elimina todos los espacios en blanco (incluyendo saltos de línea, tabulaciones, etc.)
+            return text.replace(/\s/g, '').length;
+        }
+
+        /**
+         * Función principal para actualizar todos los contadores.
+         */
+        function updateCounts() {
+            const text = textInput.value;
+
+            // Actualiza el recuento de palabras
+            wordCountDisplay.textContent = countWords(text);
+
+            // Actualiza el recuento de caracteres con espacios
+            charCountWithSpacesDisplay.textContent = countCharactersWithSpaces(text);
+
+            // Actualiza el recuento de caracteres sin espacios
+            charCountWithoutSpacesDisplay.textContent = countCharactersWithoutSpaces(text);
+        }
+
+        // Agrega un escuchador de eventos al textarea para que los contadores se actualicen en tiempo real
+        textInput.addEventListener('input', updateCounts);
+
+        // Llama a updateCounts() una vez al cargar la página para inicializar los contadores a 0
+        document.addEventListener('DOMContentLoaded', updateCounts);
+    </script>
+</body>
+</html>
